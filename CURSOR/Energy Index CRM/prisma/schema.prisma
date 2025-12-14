@@ -1,0 +1,136 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// UserProfile - ligado ao Supabase Auth (id = auth.users.id)
+model UserProfile {
+  id        String   @id // Supabase Auth User ID
+  email     String   @unique
+  fullName  String?
+  role      String   @default("consultor") // "consultor" ou "master"
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  clients      Client[]
+  cpes         CPE[]
+  simulations  Simulation[]
+  license      License?
+
+  @@map("user_profiles")
+}
+
+// Cliente do consultor
+model Client {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  nif         String?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user        UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cpes        CPE[]
+  simulations Simulation[]
+
+  @@index([userId])
+  @@map("clients")
+}
+
+// CPE (Contrato de Fornecimento de Energia)
+model CPE {
+  id                    String   @id @default(uuid())
+  clientId              String   @map("client_id")
+  userId                String   @map("user_id")
+  cpeNumber             String   @map("cpe_number")
+  powerKw               Float    @map("power_kw")
+  cycle                 String   // "monofásico", "bifásico", "trifásico"
+  contractEndDate       DateTime? @map("contract_end_date")
+  currentSupplier       String?  @map("current_supplier")
+  status                String   @default("ativo") // "ativo", "inativo", "cancelado"
+  nextActionDate        DateTime? @map("next_action_date")
+  notes                 String?  @db.Text
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user         UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  simulations  Simulation[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([contractEndDate])
+  @@map("cpes")
+}
+
+// Simulação de preço OMIE
+model Simulation {
+  id                String   @id @default(uuid())
+  clientId          String   @map("client_id")
+  cpeId             String?  @map("cpe_id")
+  userId            String   @map("user_id")
+  startDate         DateTime @map("start_date")
+  endDate           DateTime @map("end_date")
+  estimatedConsumptionKwh Float @map("estimated_consumption_kwh")
+  spreadEurPerMwh    Float    @map("spread_eur_per_mwh")
+  omieAvgPrice      Float?   @map("omie_avg_price") // calculado
+  estimatedCostEur  Float?   @map("estimated_cost_eur") // calculado
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  client  Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  cpe     CPE?        @relation(fields: [cpeId], references: [id], onDelete: SetNull)
+  user    UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([cpeId])
+  @@map("simulations")
+}
+
+// Preços OMIE (dados históricos)
+model OmiePrice {
+  id          String   @id @default(uuid())
+  marketDate  DateTime @map("market_date")
+  period      Int      // 1-24 (horas do dia)
+  priceEurMwh Float    @map("price_eur_mwh")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([marketDate, period])
+  @@index([marketDate])
+  @@map("omie_prices")
+}
+
+// Licença/Subscrição (Stripe)
+model License {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  stripeCustomerId  String?  @unique @map("stripe_customer_id")
+  stripeSubscriptionId String? @unique @map("stripe_subscription_id")
+  plan              String   @default("free") // "free", "pro", "agency"
+  status            String   @default("inactive") // "active", "inactive", "canceled", "trial"
+  trialEndsAt       DateTime? @map("trial_ends_at")
+  currentPeriodEnd  DateTime? @map("current_period_end")
+  canceledAt        DateTime? @map("canceled_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("licenses")
+}
+
