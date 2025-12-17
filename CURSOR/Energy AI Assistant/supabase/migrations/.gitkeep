@@ -1,0 +1,13 @@
+# Pasta para migrations SQL do Supabase
+# 
+# As migrations devem seguir o padrão:
+# YYYYMMDDHHMMSS_description.sql
+# 
+# Exemplo: 20240115120000_create_tenants_table.sql
+# 
+# Para aplicar migrations:
+# npx supabase migration up
+# 
+# Para criar nova migration:
+# npx supabase migration new migration_name
+
